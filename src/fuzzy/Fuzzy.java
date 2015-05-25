@@ -2,7 +2,7 @@ package fuzzy;
 
 public class Fuzzy {
 	
-	static final float PI = 3.14159265f;
+	private static final int QUANT_INTERVALOS = 100; //pontos de discretização
 	
 	private static double temperatura; //Entrada
 	private static double volume; //Entrada
@@ -16,12 +16,23 @@ public class Fuzzy {
 	private static double volumeMedio;
 	private static double volumeGrande;
 	
+	private double pressaoDiscretizada[];
+	
 	//Conjuntos fuzzy de saída. As variáveis irão armanezar as pertinências de cada conjunto
 	private double pressaoBaixa;
 	private double pressaoMedia;
 	private double pressaoAlta;
 	
+	//Limites em relação ao eixo X para a definição dos conjuntos fuzzy da pressão
+	private static final int PRESSAO_BAIXA_INFERIOR = 0;
+	private static final int PRESSAO_BAIXA_SUPERIOR = 8;
+	private static final int PRESSAO_MEDIA_INFERIOR = 6;
+	private static final int PRESSAO_MEDIA_SUPERIOR = 10;
+	private static final int PRESSAO_ALTA_INFERIOR = 8;
+	private static final int PRESSAO_ALTA_SUPERIOR = 12;
+	
 	/*Regras de Inferência (9 regras)
+	 * {temperatura, volume, pressao}
 	 * 0 - baixo/pequeno | 1 - medio | 2 - alta/grande
 	 */
     private static int[][] regrasInferencia = new int[][]{
@@ -56,7 +67,16 @@ public class Fuzzy {
 		 * Avaliação de regras -> Os antecedentes de cada regra são processados afim de se obter 
 		 * os conjuntos de saída (consequentes) */
 	
-		avaliaRegras();
+		System.out.println("Iniciando Avaliação de Regras...");
+		//9 regras, cada coluna armazena: [0] - pertinencia, [1] - limite inferior, [2] - limite superior
+		double regrasAvaliadas[][] = avaliaRegras();
+		
+		/*for(int i = 0; i < regrasAvaliadas.length; i++){
+			System.out.println("Limite Inferior: " + regrasAvaliadas[i][1] + " | " + "Limite Superior: " + regrasAvaliadas[i][2]);
+		}*/
+		
+		System.out.println("Iniciando Agregação de Regras...");
+		agregaRegras(regrasAvaliadas);
 		
 
 	}
@@ -99,7 +119,7 @@ public class Fuzzy {
 		}
 		
 		return pertinencia;
-		 
+
 	}
 	
 	private static double pertinenciaTrapezoidal(double x, double limInferior, double limSuperior, double m, double n){
@@ -126,7 +146,127 @@ public class Fuzzy {
 		 
 	}
 	
-	private static void avaliaRegras(){
+	private static double[][] avaliaRegras(){
+		
+		double regrasAvaliadas[][] = new double[9][3]; //9 regras, cada coluna armazena: [0] - pertinencia, [1] - limite inferior, [2] - limite superior
+		for(int i = 0; i < regrasInferencia.length; i++){
+			System.out.println("=> Regra " + i);
+			//Armazena as pertinências (eixo Y)
+			double pertTemp = 0;
+			double pertVol = 0;
+			double pertPress = 0;
+			
+			//Armazena os limites do eixo X da região da pressão
+			int pressaoInferior = 0;
+			int pressaoSuperior = 0;
+			
+			int temperatura = regrasInferencia[i][0];
+			int volume = regrasInferencia[i][1];
+			int pressao = regrasInferencia[i][2];
+			
+			switch(temperatura){
+				case 0:
+					pertTemp = temperaturaBaixa;
+					System.out.println("Temperatura Baixa: " + pertTemp);
+					break;
+				case 1:
+					pertTemp = temperaturaMedia;
+					System.out.println("Temperatura Média: " + pertTemp);
+					break;
+				case 2:
+					pertTemp = temperaturaAlta;
+					System.out.println("Temperatura Alta: " + pertTemp);
+					break;
+			}
+			
+			switch(volume){
+				case 0:
+					pertVol = volumePequeno;
+					System.out.println("Volume Pequeno: " + pertVol);
+					break;
+				case 1:
+					pertVol = volumeMedio;
+					System.out.println("Volume Médio: " + pertVol);
+					break;
+				case 2:
+					pertVol = volumeGrande;
+					System.out.println("Volume Grande: " + pertVol);
+					break;
+			}
+			
+			//Como os antecedentes de todas as regras são compostos pelo operador E, escolhe-se a menor pertinência
+			if(pertTemp < pertVol){
+				pertPress = pertTemp;
+			}
+			else{
+				pertPress = pertVol;
+			}
+			
+			switch(pressao){
+				case 0: 
+					pressaoInferior = PRESSAO_BAIXA_INFERIOR;
+					pressaoSuperior = PRESSAO_BAIXA_SUPERIOR;
+					System.out.println("Pressão Baixa: " + pertPress);
+					break;
+				case 1:
+					pressaoInferior = PRESSAO_MEDIA_INFERIOR;
+					pressaoSuperior = PRESSAO_MEDIA_SUPERIOR;
+					System.out.println("Pressão Média: " + pertPress);
+					break;
+				case 2:
+					pressaoInferior = PRESSAO_ALTA_INFERIOR;
+					pressaoSuperior = PRESSAO_ALTA_SUPERIOR;
+					System.out.println("Pressão Alta: " + pertPress);
+					break;
+			}
+			
+			regrasAvaliadas[i][0] = pertPress;
+			regrasAvaliadas[i][1] = pressaoInferior;
+			regrasAvaliadas[i][2] = pressaoSuperior;
+			
+		}
+		
+		return regrasAvaliadas;
+		
+	}
+	
+	//Cria um vetor contendo os valores resultantes da agregação das regras
+	private static void agregaRegras(double regrasAvaliadas[][]){
+		
+		double eixoY[] = new double[QUANT_INTERVALOS]; //cada posição do vetor irá armazenar uma pertinência. A quantidade de pertinências armazenadas é a quantidade de intervalos
+		double eixoX[] = new double[QUANT_INTERVALOS]; //cada posição irá armazenar um valor do eixo X (pressão);
+		double fatorIncremento = (PRESSAO_ALTA_SUPERIOR - PRESSAO_BAIXA_INFERIOR)/QUANT_INTERVALOS;
+		
+		System.out.println("Fator de incremento: " + fatorIncremento);
+		
+		//Inicializa o vetor do eixoY com zero
+		for(int i = 0; i < eixoY.length; i++){
+			eixoY[i] = 0;
+		}
+		
+		eixoX[0] = 0;
+		for(int i = 1; i < QUANT_INTERVALOS; i++){
+			 eixoX[i] = fatorIncremento;
+			 System.out.println("OIOIOIOIOIO");
+			 for(int j = 0; j < regrasAvaliadas.length; j++){
+				 
+				 double limInferior = regrasAvaliadas[j][1];
+				 double limSuperior = regrasAvaliadas[j][2];
+				 
+				 System.out.println("eixo y: " + eixoY[i] + " | " + " regra: " + regrasAvaliadas[j][0] + " | limInferior: " + limInferior + " | " + "limSuperior: " + limSuperior + " | Fato de Inc: " + fatorIncremento);
+				 if(fatorIncremento >= limInferior && fatorIncremento <= limSuperior){ //x entra dentro da faixa dessa regra
+					 if(regrasAvaliadas[j][0] > eixoY[i]){
+						 eixoY[i] = regrasAvaliadas[j][0];
+					 }
+				 }
+			 }
+			 
+			 fatorIncremento += fatorIncremento;	
+		}
+		
+		/*for(int i = 0; i < QUANT_INTERVALOS; i++){
+			System.out.println(eixoX[i] + " => " + eixoY[i]);
+		}*/
 		
 	}
 	
