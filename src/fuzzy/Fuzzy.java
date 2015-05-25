@@ -2,6 +2,8 @@ package fuzzy;
 
 public class Fuzzy {
 	
+	static final float PI = 3.14159265f;
+	
 	private static double temperatura; //Entrada
 	private static double volume; //Entrada
 	private static double pressao; //Saída desfuzzificada
@@ -23,6 +25,7 @@ public class Fuzzy {
 	 * 0 - baixo/pequeno | 1 - medio | 2 - alta/grande
 	 */
     private static int[][] regrasInferencia = new int[][]{
+    	
     		{0,0,0}, //Se (Temperatura é Baixa) e (Volume é Pequeno) Então (Pressão é Baixa)
             {1,0,0}, //Se (Temperatura é Média) e (Volume é Pequeno) Então (Pressão é Baixa)
             {2,0,1}, //Se (Temperatura é Alta) e (Volume é Pequeno) Então (Pressão é Média)
@@ -123,7 +126,7 @@ public class Fuzzy {
 		 
 	}
 	
-	private void avaliaRegras(){
+	private static void avaliaRegras(){
 		
 	}
 	
