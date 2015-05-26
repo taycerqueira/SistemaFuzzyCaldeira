@@ -2,7 +2,7 @@ package fuzzy;
 
 public class Fuzzy {
 	
-	private static final int QUANT_INTERVALOS = 100; //pontos de discretização
+	private static final int QUANT_INTERVALOS = 100; //Quantidade de intervalos em cada conjunto
 	
 	private static double temperatura; //Entrada
 	private static double volume; //Entrada
@@ -15,13 +15,6 @@ public class Fuzzy {
 	private static double volumePequeno;
 	private static double volumeMedio;
 	private static double volumeGrande;
-	
-	private double pressaoDiscretizada[];
-	
-	//Conjuntos fuzzy de saída. As variáveis irão armanezar as pertinências de cada conjunto
-	private double pressaoBaixa;
-	private double pressaoMedia;
-	private double pressaoAlta;
 	
 	//Limites em relação ao eixo X para a definição dos conjuntos fuzzy da pressão
 	private static final int PRESSAO_BAIXA_INFERIOR = 0;
@@ -66,7 +59,8 @@ public class Fuzzy {
 		 * Avaliação de regras + Agregração de Regras (Método de Mandami)
 		 * Avaliação de regras -> Os antecedentes de cada regra são processados afim de se obter 
 		 * os conjuntos de saída (consequentes) */
-	
+		
+		System.out.println("--------------------------------");
 		System.out.println("Iniciando Avaliação de Regras...");
 		//9 regras, cada coluna armazena: [0] - pertinencia, [1] - limite inferior, [2] - limite superior
 		double regrasAvaliadas[][] = avaliaRegras();
@@ -75,8 +69,15 @@ public class Fuzzy {
 			System.out.println("Limite Inferior: " + regrasAvaliadas[i][1] + " | " + "Limite Superior: " + regrasAvaliadas[i][2]);
 		}*/
 		
+		System.out.println("--------------------------------");
 		System.out.println("Iniciando Agregação de Regras...");
-		agregaRegras(regrasAvaliadas);
+		double[] pertinenciasAgregadas = agregaRegras(regrasAvaliadas);
+		
+		System.out.println("--------------------------------");
+		System.out.println("Desfuzzificação...");
+		pressao = desfuzzificacao(pertinenciasAgregadas);
+		
+		System.out.println("\nRESULTADO: Pressão = " + pressao);
 		
 
 	}
@@ -150,7 +151,7 @@ public class Fuzzy {
 		
 		double regrasAvaliadas[][] = new double[9][3]; //9 regras, cada coluna armazena: [0] - pertinencia, [1] - limite inferior, [2] - limite superior
 		for(int i = 0; i < regrasInferencia.length; i++){
-			System.out.println("=> Regra " + i);
+			System.out.println("\n=> Regra " + i);
 			//Armazena as pertinências (eixo Y)
 			double pertTemp = 0;
 			double pertVol = 0;
@@ -231,44 +232,92 @@ public class Fuzzy {
 	}
 	
 	//Cria um vetor contendo os valores resultantes da agregação das regras
-	private static void agregaRegras(double regrasAvaliadas[][]){
+	private static double[] agregaRegras(double regrasAvaliadas[][]){
 		
 		double eixoY[] = new double[QUANT_INTERVALOS]; //cada posição do vetor irá armazenar uma pertinência. A quantidade de pertinências armazenadas é a quantidade de intervalos
 		double eixoX[] = new double[QUANT_INTERVALOS]; //cada posição irá armazenar um valor do eixo X (pressão);
-		double fatorIncremento = (PRESSAO_ALTA_SUPERIOR - PRESSAO_BAIXA_INFERIOR)/QUANT_INTERVALOS;
+		double fatorIncremento = (double)(PRESSAO_ALTA_SUPERIOR - PRESSAO_BAIXA_INFERIOR)/QUANT_INTERVALOS;
+		double soma = 0;
 		
 		System.out.println("Fator de incremento: " + fatorIncremento);
+		
+		System.out.println("Pontos do gráfico: ");
+		System.out.println("x => y");
 		
 		//Inicializa o vetor do eixoY com zero
 		for(int i = 0; i < eixoY.length; i++){
 			eixoY[i] = 0;
 		}
 		
-		eixoX[0] = 0;
-		for(int i = 1; i < QUANT_INTERVALOS; i++){
-			 eixoX[i] = fatorIncremento;
-			 System.out.println("OIOIOIOIOIO");
+		for(int i = 0; i < QUANT_INTERVALOS; i++){
+			 eixoX[i] = soma;
+			 
 			 for(int j = 0; j < regrasAvaliadas.length; j++){
 				 
 				 double limInferior = regrasAvaliadas[j][1];
 				 double limSuperior = regrasAvaliadas[j][2];
+				
 				 
-				 System.out.println("eixo y: " + eixoY[i] + " | " + " regra: " + regrasAvaliadas[j][0] + " | limInferior: " + limInferior + " | " + "limSuperior: " + limSuperior + " | Fato de Inc: " + fatorIncremento);
-				 if(fatorIncremento >= limInferior && fatorIncremento <= limSuperior){ //x entra dentro da faixa dessa regra
-					 if(regrasAvaliadas[j][0] > eixoY[i]){
-						 eixoY[i] = regrasAvaliadas[j][0];
+				 //System.out.println("eixo y: " + eixoY[i] + " | " + " regra: " + regrasAvaliadas[j][0] + " | limInferior: " + limInferior + " | " + "limSuperior: " + limSuperior + " | Soma: " + soma);
+				 if(soma >= limInferior && soma <= limSuperior){ //x entra dentro da faixa dessa regra
+					 double limite = regrasAvaliadas[j][0];
+					 double y = limite;
+					 if(soma >= 4 && soma <= 8){ //pressao baixa - trapezoidal
+						 double p = pertinenciaTrapezoidal(soma, limInferior, limSuperior, 4, 5);
+						 if(p < limite){
+							 y = p;
+						 }
+					 }
+					 if(soma >= 6 && soma <= 10){ //pressao media - triangular
+						 double p = pertinenciaTriangular(soma, limInferior, limSuperior, 8);
+						 if(p < limite){
+							 y = p;
+						 }
+					 }
+					 if(soma >= 8 && soma <= 12){ //pressao alta - trapezoidal
+						 double p = pertinenciaTrapezoidal(soma, limInferior, limSuperior, 11, 12);
+						 if(p < limite){
+							 y = p;
+						 }
+					 }
+					 
+					 if(y > eixoY[i]){
+						 eixoY[i] = y;
 					 }
 				 }
 			 }
 			 
-			 fatorIncremento += fatorIncremento;	
+			 soma += fatorIncremento;	
 		}
 		
-		/*for(int i = 0; i < QUANT_INTERVALOS; i++){
+		for(int i = 0; i < QUANT_INTERVALOS; i++){
 			System.out.println(eixoX[i] + " => " + eixoY[i]);
-		}*/
+		}
+		
+		return eixoY;
 		
 	}
 	
+	private static double desfuzzificacao(double[] eixoY){
+		
+		double[] eixoX = new double[QUANT_INTERVALOS];
+		double fatorIncremento = (double)(PRESSAO_ALTA_SUPERIOR - PRESSAO_BAIXA_INFERIOR)/QUANT_INTERVALOS;
+		double soma = 0;
+        double numerador = 0;
+        double denominador = 0;
+        
+        for(int i = 0; i < QUANT_INTERVALOS; i++){
+			 eixoX[i] = soma;
+			 soma += fatorIncremento;
+        }
+        
+        for (int i = 0; i < QUANT_INTERVALOS; i++) {
+            numerador += eixoX[i] * eixoY[i];
+            denominador += eixoY[i];
+        }
+        
+        return numerador/denominador;
+        
+	}
 
 }
